@@ -1,0 +1,50 @@
+
+// Org and Invoice Info
+organizationId = organization.get("organization_id");
+invoiceId = invoice.get("invoice_id");
+
+// Primary Invoice Info
+primaryInvoiceSearch = zoho.books.getRecordsByID("Invoices",organizationId,invoiceId);
+primaryInvoice = primaryInvoiceSearch.get("invoice");
+
+// Process Custom Fields
+primaryInvoiceCustomFields = primaryInvoice.get("custom_fields");
+eventDate = null;
+linkingInvoice = null;
+for each  customField in primaryInvoiceCustomFields
+{
+	if(customField.get("placeholder") == "cf_event_date")
+	{
+		eventDate = customField.get("value");
+	}
+	else if(customField.get("placeholder") == "cf_linking_invoice")
+	{
+		linkingInvoice = customField.get("value");
+	}
+}
+
+// Create Secondary Invoice
+secondaryInvoiceMap = Map();
+secondaryInvoiceMap.put("customer_id",primaryInvoice.get("customer_id"));
+secondaryInvoiceMap.put("date",primaryInvoice.get("date"));
+
+// Set Due Date to Two Weeks Before Event Date
+dueDateDaysBefore = 14;
+if(primaryInvoice.get("date").daysBetween(eventDate) < dueDateDaysBefore)
+{
+	dueDateDaysBefore = primaryInvoice.get("date").daysBetween(eventDate);
+}
+secondaryInvoiceMap.put("due_date",eventDate.subDay(dueDateDaysBefore));
+secondaryInvoiceMap.put("salesperson_id",primaryInvoice.get("salesperson_id"));
+secondaryInvoiceMap.put("custom_fields",{{"placeholder":"cf_linking_invoice","value":primaryInvoice.get("invoice_url")},{"placeholder":"cf_event_date","value":eventDate}});
+
+// Set Line Items
+lineItemsList = List();
+for each  lineItem in primaryInvoice.get("line_items")
+{
+	lineItem.deleteKey("line_item_id");
+	lineItemsList.add(lineItem);
+}
+secondaryInvoiceMap.put("line_items",lineItemsList);
+createSecondayInvoice = zoho.books.createRecord("Invoices",organizationId,secondaryInvoiceMap);
+info createSecondayInvoice;
